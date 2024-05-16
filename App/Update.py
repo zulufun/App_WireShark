@@ -40,29 +40,45 @@ class WiresharkApp:
         self.master = master
         master.title("Wireshark App")
         # Frame chứa phần nhập liệu và nút bắt đầu
-        self.input_frame = tk.Frame(master)
-        self.input_frame.pack(pady=10)
+        self.interface_frame = tk.Frame(master)
+        self.interface_frame.pack(pady=10)
 
-        self.label = tk.Label(self.input_frame, text="Enter interface name:")
+        self.label = tk.Label(self.interface_frame, text="Select interface:")
         self.label.grid(row=0, column=0, padx=5)
 
-        self.interface_entry = tk.Entry(self.input_frame)
-        self.interface_entry.grid(row=0, column=1, padx=5)
+        # Sử dụng Combobox với các giá trị sẵn
+        self.interface_combobox = ttk.Combobox(self.interface_frame, values=["Wi-Fi", "Bluetooth"])
+        self.interface_combobox.grid(row=0, column=1, padx=5)
+        self.interface_combobox.current(0)  # Thiết lập giá trị mặc định
 
-        self.start_button = tk.Button(self.input_frame, text="Start", command=self.start_capture)
+        self.start_button = tk.Button(self.interface_frame, text="Start", command=self.start_capture)
         self.start_button.grid(row=0, column=2, padx=5)
-
-        self.stop_button = tk.Button(self.input_frame, text="Stop", command=self.stop_capture, state=tk.DISABLED)
+        self.stop_button = tk.Button(self.interface_frame, text="Stop", command=self.stop_capture, state=tk.DISABLED)
         self.stop_button.grid(row=0, column=3, padx=5)
-
-        self.continue_button = tk.Button(self.input_frame, text="Continue", command=self.continue_capture,
+        self.continue_button = tk.Button(self.interface_frame, text="Continue", command=self.continue_capture,
                                          state=tk.DISABLED)
         self.continue_button.grid(row=0, column=4, padx=5)
-
-        self.export_button = tk.Button(self.input_frame, text="Export to CSV", command=self.export_to_csv,
+        self.export_button = tk.Button(self.interface_frame, text="Export to CSV", command=self.export_to_csv,
                                        state=tk.DISABLED)
         self.export_button.grid(row=0, column=5, padx=5)
+        # Phần Filter
+        self.filter_frame = tk.Frame(master)
+        self.filter_frame.pack(pady=10)
 
+        self.filter_field_label = tk.Label(self.filter_frame, text="Filter Field:")
+        self.filter_field_label.grid(row=0, column=0, padx=5)
+
+        self.filter_field_combobox = ttk.Combobox(self.filter_frame, values=["Source IP", "Destination IP", "Protocol"])
+        self.filter_field_combobox.grid(row=0, column=1, padx=5)
+
+        self.filter_entry_label = tk.Label(self.filter_frame, text="Filter Text:")
+        self.filter_entry_label.grid(row=0, column=2, padx=5)
+
+        self.filter_entry = tk.Entry(self.filter_frame)
+        self.filter_entry.grid(row=0, column=3, padx=5)
+
+        self.filter_button = tk.Button(self.filter_frame, text="Filter", command=self.start_filter_thread)
+        self.filter_button.grid(row=0, column=4, padx=5)
         # Treeview để hiển thị các gói tin
         self.tree = ttk.Treeview(master, columns=(
         "No.", "Time", "Source", "Destination", "Protocol", "Length", "Src_Country", "Src_City",
@@ -87,13 +103,11 @@ class WiresharkApp:
             "Destination": 100,
             "Protocol": 80,
             "Length": 80,
-
             "Src_Country": 100,
             "Src_City": 100,
             "Src_Time_Zone": 100,
             "Src_Service":100,
         }
-
         # Thiết lập chiều rộng cho từng cột
         for column, width in column_widths.items():
             self.tree.column(column, width=width, anchor=tk.CENTER)
@@ -105,18 +119,71 @@ class WiresharkApp:
         self.scrollbar = ttk.Scrollbar(master, orient="vertical", command=self.tree.yview)
         self.scrollbar.pack(side="right", fill="y")
         self.tree.configure(yscrollcommand=self.scrollbar.set)
-
         # Log ScrolledText widget
         self.log = scrolledtext.ScrolledText(master, width=60, height=10)
         self.log.pack(fill=tk.BOTH, expand=True)
-
         self.capture = None
         self.capture_thread = None
         self.running = False
         self.packet_list = []
+        ################Fillter#########################
+
+
+        # Thêm hàm start_filter_thread để chạy Filter trong một luồng Thread
+
+    def start_filter_thread(self):
+        filter_field = self.filter_field_combobox.get()
+        filter_text = self.filter_entry.get()
+        self.filter_thread = threading.Thread(target=self.filter_packets, args=(filter_field, filter_text))
+        self.filter_thread.start()
+
+        # Thêm hàm filter_packets để thực hiện Filter
+
+    def filter_packets(self, filter_field, filter_text):
+        # Thực hiện Filter ở đây
+        # Đảm bảo chỉ sử dụng các biến cục bộ và không thực hiện thay đổi trực tiếp trên giao diện
+        # Sau khi hoàn thành, sử dụng self.master.after để cập nhật giao diện
+
+        # Ví dụ về cách thực hiện Filter:
+        filtered_packets = []
+        for packet in self.packet_list:
+            if filter_field == "Source IP":
+                if hasattr(packet, 'ip'):
+                    if packet.ip.src == filter_text:
+                        filtered_packets.append(packet)
+            elif filter_field == "Destination IP":
+                if hasattr(packet, 'ip'):
+                    if packet.ip.dst == filter_text:
+                        filtered_packets.append(packet)
+            elif filter_field == "Protocol":
+                if hasattr(packet, 'transport_layer'):
+                    if packet.transport_layer == filter_text:
+                        filtered_packets.append(packet)
+
+        # Xóa tất cả các dòng trong Treeview
+        self.tree.delete(*self.tree.get_children())
+
+        # Hiển thị các gói tin đã lọc
+        for idx, packet in enumerate(filtered_packets, start=1):
+            # Thêm thông tin vào Treeview
+            self.tree.insert("", "end", values=(
+                idx,
+                packet.sniff_time.strftime('%Y-%m-%d %H:%M:%S'),
+                packet.ip.src if hasattr(packet, 'ip') else '',
+                packet.ip.dst if hasattr(packet, 'ip') else '',
+                packet.transport_layer if hasattr(packet, 'transport_layer') else '',
+                packet.length if hasattr(packet, 'length') else ''
+            ))
+
+        # Thêm thanh scrollbar
+        self.scrollbar = ttk.Scrollbar(self.master, orient="vertical", command=self.tree.yview)
+        self.scrollbar.pack(side="right", fill="y")
+        self.tree.configure(yscrollcommand=self.scrollbar.set)
+        #####################End Fillter############################
+
     def start_capture(self):
         if not self.running:
-            interface = self.interface_entry.get()
+            interface = self.interface_combobox.get()
             try:
                 self.capture = pyshark.LiveCapture(interface=interface)
                 self.log.insert(tk.END, "Started capturing on interface: {}\n".format(interface))
@@ -152,18 +219,7 @@ class WiresharkApp:
             self.stop_button.config(state=tk.NORMAL)
             self.continue_button.config(state=tk.DISABLED)
             self.export_button.config(state=tk.DISABLED)
-    def geolocation(ip_address):
-        try:
-            with geoip2.database.Reader('GeoLite2-City.mmdb') as gi:
-                rec = gi.city(ip_address)
-                city = rec.city.name
-                country = rec.country.name
-                continent = rec.continent.name
-                latitue = rec.location.latitude
-                longitude = rec.location.longitude
-                return f'{city}, {country}, {continent}, {latitue} {longitude}'
-        except Exception as e:
-            print(f'{"":>3}[-] Exception: {e.__class__.__name__}')
+
     def capture_packets(self):
         for idx, packet in enumerate(self.capture.sniff_continuously(), start=1):
             if not self.running:
