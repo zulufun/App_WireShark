@@ -1,14 +1,11 @@
 import tkinter as tk
-from tkinter import scrolledtext, filedialog, ttk, Menu, messagebox
+from tkinter import scrolledtext, filedialog, ttk, messagebox
 import pyshark
 import threading
 import csv
-import geoip2.database
 import requests
-import dpkt
-import socket
 
-# Thêm tính năng lấy thông tin của địa chi IP
+# Thêm tính năng lấy thông tin của địa chỉ IP
 class IPGeolocation(object):
     def __init__(self, ip_address):
         self.latitude = ''
@@ -38,19 +35,19 @@ class IPGeolocation(object):
 class WiresharkApp:
     def __init__(self, master):
         self.master = master
-        master.title("Packet Capture App")
-        # Menu
-        self.menu = Menu(master)
-        master.config(menu=self.menu)
+        master.title("Wireshark App")
 
-        # Menu File
-        self.file_menu = Menu(self.menu)
+        # Menu
+        self.menu = tk.Menu(master)
+        master.config(menu=self.menu)
+        self.file_menu = tk.Menu(self.menu, tearoff=False)
         self.menu.add_cascade(label="File", menu=self.file_menu)
         self.file_menu.add_command(label="Open", command=self.open_file)
-        self.file_menu.add_command(label="Save", command=self.save_to_csv)
+        self.file_menu.add_command(label="Save to CSV", command=self.save_to_csv)
+        self.file_menu.add_separator()
+        self.file_menu.add_command(label="Exit", command=master.quit)
 
-        # Menu Help
-        self.help_menu = Menu(self.menu)
+        self.help_menu = tk.Menu(self.menu, tearoff=False)
         self.menu.add_cascade(label="Help", menu=self.help_menu)
         self.help_menu.add_command(label="About", command=self.show_help_message)
 
@@ -70,12 +67,11 @@ class WiresharkApp:
         self.start_button.grid(row=0, column=2, padx=5)
         self.stop_button = tk.Button(self.interface_frame, text="Stop", command=self.stop_capture, state=tk.DISABLED)
         self.stop_button.grid(row=0, column=3, padx=5)
-        self.continue_button = tk.Button(self.interface_frame, text="Continue", command=self.continue_capture,
-                                         state=tk.DISABLED)
+        self.continue_button = tk.Button(self.interface_frame, text="Continue", command=self.continue_capture, state=tk.DISABLED)
         self.continue_button.grid(row=0, column=4, padx=5)
-        self.export_button = tk.Button(self.interface_frame, text="Export to CSV", command=self.export_to_csv,
-                                       state=tk.DISABLED)
+        self.export_button = tk.Button(self.interface_frame, text="Export to CSV", command=self.export_to_csv, state=tk.DISABLED)
         self.export_button.grid(row=0, column=5, padx=5)
+
         # Phần Filter
         self.filter_frame = tk.Frame(master)
         self.filter_frame.pack(pady=10)
@@ -96,9 +92,7 @@ class WiresharkApp:
         self.filter_button.grid(row=0, column=4, padx=5)
 
         # Treeview để hiển thị các gói tin
-        self.tree = ttk.Treeview(master, columns=(
-            "No.", "Time", "Source", "Destination", "Protocol", "Length", "Src_Country", "Src_City",
-            "Src_Time_Zone", "Src_Service"), show="headings")
+        self.tree = ttk.Treeview(master, columns=("No.", "Time", "Source", "Destination", "Protocol", "Length", "Src_Country", "Src_City", "Src_Time_Zone", "Src_Service"), show="headings")
         self.tree.heading("No.", text="No.")
         self.tree.heading("Time", text="Time")
         self.tree.heading("Source", text="Source")
@@ -110,7 +104,7 @@ class WiresharkApp:
         self.tree.heading("Src_Time_Zone", text="Src_Time Zone")
         self.tree.heading("Src_Service", text="Src_Service")
 
-        # Định nghĩa chiều rộng mặc định cho từng cột
+        # Định nghĩa chiều rộng mặc định cho từng cột (tên cột, chiều rộng)
         column_widths = {
             "No.": 50,
             "Time": 150,
@@ -138,10 +132,12 @@ class WiresharkApp:
         # Log ScrolledText widget
         self.log = scrolledtext.ScrolledText(master, width=60, height=10)
         self.log.pack(fill=tk.BOTH, expand=True)
+
         self.capture = None
         self.capture_thread = None
         self.running = False
         self.packet_list = []
+        self.filtered_packets = []
 
     def start_filter_thread(self):
         filter_field = self.filter_field_combobox.get()
@@ -150,44 +146,50 @@ class WiresharkApp:
         self.filter_thread.start()
 
     def filter_packets(self, filter_field, filter_text):
-        filtered_packets = []
+        self.filtered_packets = []
         for packet in self.packet_list:
             if filter_field == "Source IP":
                 if hasattr(packet, 'ip'):
                     if packet.ip.src == filter_text:
-                        filtered_packets.append(packet)
+                        self.filtered_packets.append(packet)
             elif filter_field == "Destination IP":
                 if hasattr(packet, 'ip'):
                     if packet.ip.dst == filter_text:
-                        filtered_packets.append(packet)
+                        self.filtered_packets.append(packet)
             elif filter_field == "Protocol":
                 if hasattr(packet, 'transport_layer'):
                     if packet.transport_layer == filter_text:
-                        filtered_packets.append(packet)
+                        self.filtered_packets.append(packet)
 
+        self.display_packets(self.filtered_packets)
+
+    def display_packets(self, packets):
         self.tree.delete(*self.tree.get_children())
 
-        for idx, packet in enumerate(filtered_packets, start=1):
-            self.tree.insert("", "end", values=(
-                idx,
-                packet.sniff_time.strftime('%Y-%m-%d %H:%M:%S'),
-                packet.ip.src if hasattr(packet, 'ip') else '',
-                packet.ip.dst if hasattr(packet, 'ip') else '',
-                packet.transport_layer if hasattr(packet, 'transport_layer') else '',
-                packet.length if hasattr(packet, 'length') else ''
-            ))
-
-        self.scrollbar = ttk.Scrollbar(self.master, orient="vertical", command=self.tree.yview)
-        self.scrollbar.pack(side="right", fill="y")
-        self.tree.configure(yscrollcommand=self.scrollbar.set)
+        for idx, packet in enumerate(packets, start=1):
+            if 'ip' in packet:
+                source_ip = packet.ip.src
+                dest_ip = packet.ip.dst
+                source_geo = IPGeolocation(source_ip)
+                dest_geo = IPGeolocation(dest_ip)
+                self.tree.insert("", "end", values=(
+                    idx,
+                    packet.sniff_time.strftime('%Y-%m-%d %H:%M:%S'),
+                    source_ip,
+                    dest_ip,
+                    packet.transport_layer,
+                    packet.length,
+                    source_geo.country,
+                    source_geo.city,
+                    source_geo.time_zone,
+                    source_geo.isp
+                ))
 
     def start_capture(self):
         if not self.running:
             interface = self.interface_combobox.get()
             try:
                 self.capture = pyshark.LiveCapture(interface=interface)
-                self.packet_list.clear()
-                self.tree.delete(*self.tree.get_children())  # Clear previous entries in the treeview
                 self.log.insert(tk.END, "Started capturing on interface: {}\n".format(interface))
                 self.start_button.config(state=tk.DISABLED)
                 self.stop_button.config(state=tk.NORMAL)
@@ -213,139 +215,94 @@ class WiresharkApp:
 
     def continue_capture(self):
         if not self.running:
-            interface = self.interface_combobox.get()
-            try:
-                self.capture = pyshark.LiveCapture(interface=interface)
-                self.log.insert(tk.END, "Continued capturing on interface: {}\n".format(interface))
-                self.start_button.config(state=tk.DISABLED)
-                self.stop_button.config(state=tk.NORMAL)
-                self.continue_button.config(state=tk.DISABLED)
-                self.export_button.config(state=tk.DISABLED)
-
-                self.running = True
-                self.capture_thread = threading.Thread(target=self.capture_packets)
-                self.capture_thread.start()
-            except Exception as e:
-                self.log.insert(tk.END, "Error: {}\n".format(e))
+            self.running = True
+            self.capture_thread = threading.Thread(target=self.capture_packets)
+            self.capture_thread.start()
+            self.log.insert(tk.END, "Capture resumed\n")
+            self.start_button.config(state=tk.DISABLED)
+            self.stop_button.config(state=tk.NORMAL)
+            self.continue_button.config(state=tk.DISABLED)
+            self.export_button.config(state=tk.DISABLED)
 
     def capture_packets(self):
-        try:
-            for packet in self.capture.sniff_continuously():
-                if not self.running:
-                    break
-                self.packet_list.append(packet)
-                self.add_packet_to_tree(packet)
-        except Exception as e:
-            self.log.insert(tk.END, "Error capturing packets: {}\n".format(e))
+        for idx, packet in enumerate(self.capture.sniff_continuously(), start=1):
+            if not self.running:
+                break
+            self.packet_list.append(packet)
+            self.tree.insert("", "end", values=(
+                len(self.packet_list),
+                packet.sniff_time.strftime('%Y-%m-%d %H:%M:%S'),
+                packet.ip.src if 'ip' in packet else '',
+                packet.ip.dst if 'ip' in packet else '',
+                packet.transport_layer if hasattr(packet, 'transport_layer') else '',
+                packet.length,
+                IPGeolocation(packet.ip.src).country if 'ip' in packet else '',
+                IPGeolocation(packet.ip.src).city if 'ip' in packet else '',
+                IPGeolocation(packet.ip.src).time_zone if 'ip' in packet else '',
+                IPGeolocation(packet.ip.src).isp if 'ip' in packet else ''
+            ))
 
-    def add_packet_to_tree(self, packet):
-        # Lấy thông tin của địa chỉ IP nguồn từ gói tin
-        if hasattr(packet, 'ip'):
-            src_ip = packet.ip.src
-            geolocation = IPGeolocation(src_ip)
-            src_country = geolocation.country
-            src_city = geolocation.city
-            src_time_zone = geolocation.time_zone
-            src_service = geolocation.isp
-        else:
-            src_country = ''
-            src_city = ''
-            src_time_zone = ''
-            src_service = ''
+    def display_packet_details(self, event):
+        item = self.tree.selection()
+        if item:
+            item = item[0]
+            packet = self.packet_list[int(self.tree.item(item, "values")[0]) - 1]
+            self.log.delete(1.0, tk.END)
+            self.log.insert(tk.END, str(packet))
 
-        packet_info = (
-            len(self.packet_list),
-            packet.sniff_time.strftime('%Y-%m-%d %H:%M:%S'),
-            packet.ip.src if hasattr(packet, 'ip') else '',
-            packet.ip.dst if hasattr(packet, 'ip') else '',
-            packet.transport_layer if hasattr(packet, 'transport_layer') else '',
-            packet.length if hasattr(packet, 'length') else '',
-            src_country,
-            src_city,
-            src_time_zone,
-            src_service
-        )
-        self.tree.insert("", "end", values=packet_info)
-
-    def open_file(self):
-        file_path = filedialog.askopenfilename(filetypes=[("PCAP files", "*.pcap")])
-        if file_path:
-            self.tree.delete(*self.tree.get_children())
-            self.log.insert(tk.END, "Opened file: {}\n".format(file_path))
-            open_thread = threading.Thread(target=self.read_pcap_file, args=(file_path,))
-            open_thread.start()
-
-    def read_pcap_file(self, file_path):
-        try:
-            with open(file_path, 'rb') as f:
-                pcap = dpkt.pcap.Reader(f)
-                for idx, (timestamp, buf) in enumerate(pcap, start=1):
-                    eth = dpkt.ethernet.Ethernet(buf)
-                    if isinstance(eth.data, dpkt.ip.IP):
-                        ip = eth.data
-                        src_ip = socket.inet_ntoa(ip.src)
-                        dst_ip = socket.inet_ntoa(ip.dst)
-                        geolocation = IPGeolocation(src_ip)
-                        src_country = geolocation.country
-                        src_city = geolocation.city
-                        src_time_zone = geolocation.time_zone
-                        src_service = geolocation.isp
-                        packet_info = (
-                            idx,
-                            timestamp,
-                            src_ip,
-                            dst_ip,
-                            ip.p,
-                            len(buf),
-                            src_country,
-                            src_city,
-                            src_time_zone,
-                            src_service
-                        )
-                        self.tree.insert("", "end", values=packet_info)
-        except Exception as e:
-            self.log.insert(tk.END, "Error reading file: {}\n".format(e))
-
-    def save_to_csv(self):
-        file_path = filedialog.asksaveasfilename(defaultextension=".csv",
-                                                 filetypes=[("CSV files", "*.csv"), ("All files", "*.*")])
-        if file_path:
-            self.export_to_csv(file_path)
-
-    def export_to_csv(self, file_path=""):
-        if not file_path:
-            file_path = filedialog.asksaveasfilename(defaultextension=".csv",
-                                                     filetypes=[("CSV files", "*.csv"), ("All files", "*.*")])
+    def export_to_csv(self):
+        file_path = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV files", "*.csv")])
         if file_path:
             try:
                 with open(file_path, mode='w', newline='') as file:
                     writer = csv.writer(file)
-                    writer.writerow(
-                        ["No.", "Time", "Source", "Destination", "Protocol", "Length", "Src_Country", "Src_City",
-                         "Src_Time_Zone", "Src_Service"])
-                    for row in self.tree.get_children():
-                        writer.writerow(self.tree.item(row)['values'])
-                self.log.insert(tk.END, "Exported to {}\n".format(file_path))
+                    writer.writerow(["No.", "Time", "Source", "Destination", "Protocol", "Length", "Src_Country", "Src_City", "Src_Time_Zone", "Src_Service"])
+                    for idx, packet in enumerate(self.packet_list, start=1):
+                        if 'ip' in packet:
+                            source_ip = packet.ip.src
+                            dest_ip = packet.ip.dst
+                            source_geo = IPGeolocation(source_ip)
+                            writer.writerow([idx, packet.sniff_time.strftime('%Y-%m-%d %H:%M:%S'), source_ip, dest_ip, packet.transport_layer, packet.length, source_geo.country, source_geo.city, source_geo.time_zone, source_geo.isp])
+                self.log.insert(tk.END, "Data exported to {}\n".format(file_path))
             except Exception as e:
                 self.log.insert(tk.END, "Error exporting to CSV: {}\n".format(e))
 
-    def display_packet_details(self, event):
-        selected_item = self.tree.selection()
-        if selected_item:
-            packet_details = self.tree.item(selected_item)["values"]
-            details = "Packet Details:\n"
-            details += "\n".join(f"{self.tree.heading(col, 'text')}: {val}" for col, val in zip(self.tree["columns"], packet_details))
-            messagebox.showinfo("Packet Details", details)
+    def open_file(self):
+        file_path = filedialog.askopenfilename(filetypes=[("PCAP files", "*.pcap"), ("All files", "*.*")])
+        if file_path:
+            try:
+                self.capture = pyshark.FileCapture(file_path)
+                self.log.insert(tk.END, "Opened file: {}\n".format(file_path))
+                self.start_button.config(state=tk.DISABLED)
+                self.stop_button.config(state=tk.DISABLED)
+                self.continue_button.config(state=tk.DISABLED)
+                self.export_button.config(state=tk.NORMAL)
+
+                self.packet_list.clear()
+                self.display_packets(self.capture)
+            except Exception as e:
+                self.log.insert(tk.END, "Error opening file: {}\n".format(e))
+
+    def save_to_csv(self):
+        self.export_to_csv()
 
     def show_help_message(self):
-        help_message = "Packet Capture App\n\n" \
-                       "This application allows you to capture and analyze network packets.\n\n" \
-                       "Use the 'File' menu to open a PCAP file or save captured packets to a CSV file.\n\n" \
-                       "Use the 'Help' menu to view this help message."
-        messagebox.showinfo("About", help_message)
+        help_text = (
+            "Wireshark App Help\n"
+            "====================\n"
+            "1. Select interface and click Start to start capturing packets.\n"
+            "2. Click Stop to stop capturing.\n"
+            "3. Click Continue to resume capturing.\n"
+            "4. Use Filter to filter packets by Source IP, Destination IP, or Protocol.\n"
+            "5. Use the File menu to open a PCAP file or save captured data to a CSV file.\n"
+            "6. Click on a packet to see its details."
+        )
+        messagebox.showinfo("Help", help_text)
 
-
-if __name__ == "__main__":
+def main():
     root = tk.Tk()
     app = WiresharkApp(root)
     root.mainloop()
+
+if __name__ == "__main__":
+    main()

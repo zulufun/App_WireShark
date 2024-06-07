@@ -1,13 +1,12 @@
 import tkinter as tk
-from tkinter import scrolledtext, filedialog, ttk, messagebox
+from tkinter import scrolledtext, filedialog, ttk
 import pyshark
 import threading
 import csv
 import requests
-import matplotlib.pyplot as plt
-from collections import Counter
-
-# Thêm tính năng lấy thông tin của địa chỉ IP
+import dpkt
+import socket
+#Thêm tính năng lấy thông tin của địa chi IP
 class IPGeolocation(object):
     def __init__(self, ip_address):
         self.latitude = ''
@@ -38,26 +37,6 @@ class WiresharkApp:
     def __init__(self, master):
         self.master = master
         master.title("Wireshark App")
-
-        # Menu
-        self.menu = tk.Menu(master)
-        master.config(menu=self.menu)
-        self.file_menu = tk.Menu(self.menu, tearoff=False)
-        self.menu.add_cascade(label="File", menu=self.file_menu)
-        self.file_menu.add_command(label="Open", command=self.open_file)
-        self.file_menu.add_command(label="Save to CSV", command=self.save_to_csv)
-        self.file_menu.add_separator()
-        self.file_menu.add_command(label="Exit", command=master.quit)
-
-        self.statistics_menu = tk.Menu(self.menu, tearoff=False)
-        self.menu.add_cascade(label="Statistics", menu=self.statistics_menu)
-        self.statistics_menu.add_command(label="Show Src_Country Chart", command=self.show_src_country_chart)
-        self.statistics_menu.add_command(label="Show Src_Service Chart", command=self.show_src_service_chart)
-
-        self.help_menu = tk.Menu(self.menu, tearoff=False)
-        self.menu.add_cascade(label="Help", menu=self.help_menu)
-        self.help_menu.add_command(label="About", command=self.show_help_message)
-
         # Frame chứa phần nhập liệu và nút bắt đầu
         self.interface_frame = tk.Frame(master)
         self.interface_frame.pack(pady=10)
@@ -74,11 +53,12 @@ class WiresharkApp:
         self.start_button.grid(row=0, column=2, padx=5)
         self.stop_button = tk.Button(self.interface_frame, text="Stop", command=self.stop_capture, state=tk.DISABLED)
         self.stop_button.grid(row=0, column=3, padx=5)
-        self.continue_button = tk.Button(self.interface_frame, text="Continue", command=self.continue_capture, state=tk.DISABLED)
+        self.continue_button = tk.Button(self.interface_frame, text="Continue", command=self.continue_capture,
+                                         state=tk.DISABLED)
         self.continue_button.grid(row=0, column=4, padx=5)
-        self.export_button = tk.Button(self.interface_frame, text="Export to CSV", command=self.export_to_csv, state=tk.DISABLED)
+        self.export_button = tk.Button(self.interface_frame, text="Export to CSV", command=self.export_to_csv,
+                                       state=tk.DISABLED)
         self.export_button.grid(row=0, column=5, padx=5)
-
         # Phần Filter
         self.filter_frame = tk.Frame(master)
         self.filter_frame.pack(pady=10)
@@ -97,15 +77,17 @@ class WiresharkApp:
 
         self.filter_button = tk.Button(self.filter_frame, text="Filter", command=self.start_filter_thread)
         self.filter_button.grid(row=0, column=4, padx=5)
-
         # Treeview để hiển thị các gói tin
-        self.tree = ttk.Treeview(master, columns=("No.", "Time", "Source", "Destination", "Protocol", "Length", "Src_Country", "Src_City", "Src_Time_Zone", "Src_Service"), show="headings")
+        self.tree = ttk.Treeview(master, columns=(
+        "No.", "Time", "Source", "Destination", "Protocol", "Length", "Src_Country", "Src_City",
+        "Src_Time_Zone", "Src_Service"), show="headings")
         self.tree.heading("No.", text="No.")
         self.tree.heading("Time", text="Time")
         self.tree.heading("Source", text="Source")
         self.tree.heading("Destination", text="Destination")
         self.tree.heading("Protocol", text="Protocol")
         self.tree.heading("Length", text="Length")
+
         self.tree.heading("Src_Country", text="Src_Country")
         self.tree.heading("Src_City", text="Src_City")
         self.tree.heading("Src_Time_Zone", text="Src_Time Zone")
@@ -122,7 +104,7 @@ class WiresharkApp:
             "Src_Country": 100,
             "Src_City": 100,
             "Src_Time_Zone": 100,
-            "Src_Service": 100,
+            "Src_Service":100,
         }
         # Thiết lập chiều rộng cho từng cột
         for column, width in column_widths.items():
@@ -135,16 +117,17 @@ class WiresharkApp:
         self.scrollbar = ttk.Scrollbar(master, orient="vertical", command=self.tree.yview)
         self.scrollbar.pack(side="right", fill="y")
         self.tree.configure(yscrollcommand=self.scrollbar.set)
-
         # Log ScrolledText widget
         self.log = scrolledtext.ScrolledText(master, width=60, height=10)
         self.log.pack(fill=tk.BOTH, expand=True)
-
         self.capture = None
         self.capture_thread = None
         self.running = False
         self.packet_list = []
-        self.filtered_packets = []
+        ################Fillter#########################
+
+
+        # Thêm hàm start_filter_thread để chạy Filter trong một luồng Thread
 
     def start_filter_thread(self):
         filter_field = self.filter_field_combobox.get()
@@ -152,45 +135,49 @@ class WiresharkApp:
         self.filter_thread = threading.Thread(target=self.filter_packets, args=(filter_field, filter_text))
         self.filter_thread.start()
 
+        # Thêm hàm filter_packets để thực hiện Filter
+
     def filter_packets(self, filter_field, filter_text):
-        self.filtered_packets = []
+        # Thực hiện Filter ở đây
+        # Đảm bảo chỉ sử dụng các biến cục bộ và không thực hiện thay đổi trực tiếp trên giao diện
+        # Sau khi hoàn thành, sử dụng self.master.after để cập nhật giao diện
+
+        # Ví dụ về cách thực hiện Filter:
+        filtered_packets = []
         for packet in self.packet_list:
             if filter_field == "Source IP":
                 if hasattr(packet, 'ip'):
                     if packet.ip.src == filter_text:
-                        self.filtered_packets.append(packet)
+                        filtered_packets.append(packet)
             elif filter_field == "Destination IP":
                 if hasattr(packet, 'ip'):
                     if packet.ip.dst == filter_text:
-                        self.filtered_packets.append(packet)
+                        filtered_packets.append(packet)
             elif filter_field == "Protocol":
                 if hasattr(packet, 'transport_layer'):
                     if packet.transport_layer == filter_text:
-                        self.filtered_packets.append(packet)
+                        filtered_packets.append(packet)
 
-        self.display_packets(self.filtered_packets)
-
-    def display_packets(self, packets):
+        # Xóa tất cả các dòng trong Treeview
         self.tree.delete(*self.tree.get_children())
 
-        for idx, packet in enumerate(packets, start=1):
-            if 'ip' in packet:
-                source_ip = packet.ip.src
-                dest_ip = packet.ip.dst
-                source_geo = IPGeolocation(source_ip)
-                dest_geo = IPGeolocation(dest_ip)
-                self.tree.insert("", "end", values=(
-                    idx,
-                    packet.sniff_time.strftime('%Y-%m-%d %H:%M:%S'),
-                    source_ip,
-                    dest_ip,
-                    packet.transport_layer,
-                    packet.length,
-                    source_geo.country,
-                    source_geo.city,
-                    source_geo.time_zone,
-                    source_geo.isp
-                ))
+        # Hiển thị các gói tin đã lọc
+        for idx, packet in enumerate(filtered_packets, start=1):
+            # Thêm thông tin vào Treeview
+            self.tree.insert("", "end", values=(
+                idx,
+                packet.sniff_time.strftime('%Y-%m-%d %H:%M:%S'),
+                packet.ip.src if hasattr(packet, 'ip') else '',
+                packet.ip.dst if hasattr(packet, 'ip') else '',
+                packet.transport_layer if hasattr(packet, 'transport_layer') else '',
+                packet.length if hasattr(packet, 'length') else ''
+            ))
+
+        # Thêm thanh scrollbar
+        self.scrollbar = ttk.Scrollbar(self.master, orient="vertical", command=self.tree.yview)
+        self.scrollbar.pack(side="right", fill="y")
+        self.tree.configure(yscrollcommand=self.scrollbar.set)
+        #####################End Fillter############################
 
     def start_capture(self):
         if not self.running:
@@ -236,26 +223,43 @@ class WiresharkApp:
             if not self.running:
                 break
             self.packet_list.append(packet)
-            self.tree.insert("", "end", values=(
-                len(self.packet_list),
-                packet.sniff_time.strftime('%Y-%m-%d %H:%M:%S'),
-                packet.ip.src if 'ip' in packet else '',
-                packet.ip.dst if 'ip' in packet else '',
-                packet.transport_layer if hasattr(packet, 'transport_layer') else '',
-                packet.length,
-                IPGeolocation(packet.ip.src).country if 'ip' in packet else '',
-                IPGeolocation(packet.ip.src).city if 'ip' in packet else '',
-                IPGeolocation(packet.ip.src).time_zone if 'ip' in packet else '',
-                IPGeolocation(packet.ip.src).isp if 'ip' in packet else ''
-            ))
-
+            # Thêm thông tin vào Treeview
+            # self.tree.insert("", "end", values=(idx, packet.sniff_time, packet.ip.src, packet.ip.dst, packet.transport_layer, packet.length, packet.layers[1].layer_name))
+            #Fix lại tính năng hiên thị thông tin ip
+            if 'ip' in packet:
+                source_ip = packet.ip.src
+                dest_ip = packet.ip.dst
+                # Tạo các đối tượng IPGeolocation để lấy thông tin địa lý
+                source_geo = IPGeolocation(source_ip)
+                dest_geo = IPGeolocation(dest_ip)
+                # Thêm thông tin vào Treeview
+                self.tree.insert("", "end", values=(
+                    idx,
+                    packet.sniff_time.strftime('%Y-%m-%d %H:%M:%S'),
+                    source_ip,
+                    dest_ip,
+                    packet.transport_layer,
+                    packet.length,
+                    source_geo.country,
+                    source_geo.city,
+                    source_geo.time_zone,
+                    source_geo.isp
+                ))
     def display_packet_details(self, event):
         item = self.tree.selection()
-        if item:
+        if item:  # Kiểm tra xem có dòng nào được chọn không
             item = item[0]
             packet = self.packet_list[int(self.tree.item(item, "values")[0]) - 1]
-            self.log.delete(1.0, tk.END)
-            self.log.insert(tk.END, str(packet))
+            #Fix tính năng
+            # Lấy thông tin địa lý của địa chỉ IP nguồn và đích của gói tin
+            # source_ip = packet.ip.src
+            # dest_ip = packet.ip.dst
+            # source_geo = IPGeolocation(source_ip)
+            # dest_geo = IPGeolocation(dest_ip)
+            #Call Api khiến app bị delay khi hiển thị chi tiết gói tin
+            ####################
+            self.log.delete(1.0, tk.END)  # Xóa nội dung hiện tại
+            self.log.insert(tk.END, str(packet))  # Hiển thị thông tin chi tiết của packet
 
     def export_to_csv(self):
         file_path = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV files", "*.csv")])
@@ -263,67 +267,12 @@ class WiresharkApp:
             try:
                 with open(file_path, mode='w', newline='') as file:
                     writer = csv.writer(file)
-                    writer.writerow(["No.", "Time", "Source", "Destination", "Protocol", "Length", "Src_Country", "Src_City", "Src_Time_Zone", "Src_Service"])
+                    writer.writerow(["No.", "Time", "Source", "Destination", "Protocol", "Length"])
                     for idx, packet in enumerate(self.packet_list, start=1):
-                        if 'ip' in packet:
-                            source_ip = packet.ip.src
-                            dest_ip = packet.ip.dst
-                            source_geo = IPGeolocation(source_ip)
-                            writer.writerow([idx, packet.sniff_time.strftime('%Y-%m-%d %H:%M:%S'), source_ip, dest_ip, packet.transport_layer, packet.length, source_geo.country, source_geo.city, source_geo.time_zone, source_geo.isp])
+                        writer.writerow([idx, packet.sniff_time, packet.ip.src, packet.ip.dst, packet.transport_layer, packet.length])
                 self.log.insert(tk.END, "Data exported to {}\n".format(file_path))
             except Exception as e:
                 self.log.insert(tk.END, "Error exporting to CSV: {}\n".format(e))
-
-    def open_file(self):
-        file_path = filedialog.askopenfilename(filetypes=[("PCAP files", "*.pcap"), ("All files", "*.*")])
-        if file_path:
-            try:
-                self.capture = pyshark.FileCapture(file_path)
-                self.log.insert(tk.END, "Opened file: {}\n".format(file_path))
-                self.start_button.config(state=tk.DISABLED)
-                self.stop_button.config(state=tk.DISABLED)
-                self.continue_button.config(state=tk.DISABLED)
-                self.export_button.config(state=tk.NORMAL)
-
-                self.packet_list.clear()
-                self.display_packets(self.capture)
-            except Exception as e:
-                self.log.insert(tk.END, "Error opening file: {}\n".format(e))
-
-    def save_to_csv(self):
-        self.export_to_csv()
-
-    def show_help_message(self):
-        help_text = (
-            "Wireshark App Help\n"
-            "====================\n"
-            "1. Select interface and click Start to start capturing packets.\n"
-            "2. Click Stop to stop capturing.\n"
-            "3. Click Continue to resume capturing.\n"
-            "4. Use Filter to filter packets by Source IP, Destination IP, or Protocol.\n"
-            "5. Use the File menu to open a PCAP file or save captured data to a CSV file.\n"
-            "6. Click on a packet to see its details.\n"
-            "7. Use the Statistics menu to view charts for Src_Country and Src_Service."
-        )
-        messagebox.showinfo("Help", help_text)
-
-    def show_src_country_chart(self):
-        countries = [IPGeolocation(packet.ip.src).country for packet in self.packet_list if 'ip' in packet]
-        self.show_chart(countries, 'Source Countries')
-
-    def show_src_service_chart(self):
-        services = [IPGeolocation(packet.ip.src).isp for packet in self.packet_list if 'ip' in packet]
-        self.show_chart(services, 'Source Services')
-
-    def show_chart(self, data, title):
-        counter = Counter(data)
-        labels, values = zip(*counter.items())
-        fig, ax = plt.subplots()
-        ax.bar(labels, values)
-        ax.set_title(title)
-        plt.xticks(rotation=45, ha='right')
-        plt.tight_layout()
-        plt.show()
 
 def main():
     root = tk.Tk()
