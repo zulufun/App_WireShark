@@ -250,14 +250,6 @@ class WiresharkApp:
         if item:  # Kiểm tra xem có dòng nào được chọn không
             item = item[0]
             packet = self.packet_list[int(self.tree.item(item, "values")[0]) - 1]
-            #Fix tính năng
-            # Lấy thông tin địa lý của địa chỉ IP nguồn và đích của gói tin
-            # source_ip = packet.ip.src
-            # dest_ip = packet.ip.dst
-            # source_geo = IPGeolocation(source_ip)
-            # dest_geo = IPGeolocation(dest_ip)
-            #Call Api khiến app bị delay khi hiển thị chi tiết gói tin
-            ####################
             self.log.delete(1.0, tk.END)  # Xóa nội dung hiện tại
             self.log.insert(tk.END, str(packet))  # Hiển thị thông tin chi tiết của packet
 

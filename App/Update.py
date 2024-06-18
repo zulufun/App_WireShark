@@ -50,13 +50,17 @@ class WiresharkApp:
         self.file_menu.add_command(label="Open", command=self.open_file)
         self.file_menu.add_command(label="Save to CSV", command=self.save_to_csv)
         self.file_menu.add_separator()
-        self.file_menu.add_command(label="Stats", command=self.show_stats)
-        self.file_menu.add_separator()
         self.file_menu.add_command(label="Exit", command=master.quit)
 
         self.help_menu = tk.Menu(self.menu, tearoff=False)
         self.menu.add_cascade(label="Help", menu=self.help_menu)
         self.help_menu.add_command(label="About", command=self.show_help_message)
+
+        # Stats Menu
+        self.stats_menu = tk.Menu(self.menu, tearoff=False)
+        self.menu.add_cascade(label="Stats", menu=self.stats_menu)
+        self.stats_menu.add_command(label="Source Country Distribution", command=self.show_source_country_stats)
+        self.stats_menu.add_command(label="Source Service Distribution", command=self.show_source_service_stats)
 
         # Frame for interface selection and control buttons
         self.interface_frame = tk.Frame(master)
@@ -304,24 +308,29 @@ class WiresharkApp:
         messagebox.showinfo("About", "Wireshark App\nVersion 1.0")
 
     def display_packet_details(self, event):
-        selected_item = self.tree.selection()[0]
-        packet_details = self.tree.item(selected_item, 'values')
-        self.log.insert(tk.END, f"Packet Details:\n{packet_details}\n")
+        item = self.tree.selection()
+        if item:  # Kiểm tra xem có dòng nào được chọn không
+            item = item[0]
+            packet = self.packet_list[int(self.tree.item(item, "values")[0]) - 1]
+            self.log.delete(1.0, tk.END)  # Xóa nội dung hiện tại
+            self.log.insert(tk.END, str(packet))  # Hiển thị thông tin chi tiết của packet
 
-    def show_stats(self):
-        self.stats_thread = threading.Thread(target=self.generate_stats)
+    def show_source_country_stats(self):
+        self.stats_thread = threading.Thread(target=self.generate_source_country_stats)
         self.stats_thread.start()
 
-    def generate_stats(self):
+    def show_source_service_stats(self):
+        self.stats_thread = threading.Thread(target=self.generate_source_service_stats)
+        self.stats_thread.start()
+
+    def generate_source_country_stats(self):
         src_country_count = {}
-        src_service_count = {}
 
         for packet in self.packet_list:
             if 'ip' in packet:
                 source_ip = packet.ip.src
                 source_geo = IPGeolocation(source_ip)
                 src_country = source_geo.country
-                src_service = source_geo.isp
 
                 if src_country:
                     if src_country in src_country_count:
@@ -329,13 +338,23 @@ class WiresharkApp:
                     else:
                         src_country_count[src_country] = 1
 
+        self.plot_pie_chart(src_country_count, "Source Country Distribution")
+
+    def generate_source_service_stats(self):
+        src_service_count = {}
+
+        for packet in self.packet_list:
+            if 'ip' in packet:
+                source_ip = packet.ip.src
+                source_geo = IPGeolocation(source_ip)
+                src_service = source_geo.isp
+
                 if src_service:
                     if src_service in src_service_count:
                         src_service_count[src_service] += 1
                     else:
                         src_service_count[src_service] = 1
 
-        self.plot_pie_chart(src_country_count, "Source Country Distribution")
         self.plot_pie_chart(src_service_count, "Source Service Distribution")
 
     def plot_pie_chart(self, data, title):
@@ -347,7 +366,10 @@ class WiresharkApp:
         plt.axis('equal')
         plt.show()
 
-if __name__ == "__main__":
+def main():
     root = tk.Tk()
     app = WiresharkApp(root)
     root.mainloop()
+
+if __name__ == "__main__":
+    main()
