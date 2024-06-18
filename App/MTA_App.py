@@ -8,10 +8,7 @@ import matplotlib.pyplot as plt
 import asyncio
 import psutil  # Thêm thư viện psutil
 
-
 class IPGeolocation:
-    cache = {}
-
     def __init__(self, ip_address):
         self.latitude = ''
         self.longitude = ''
@@ -23,37 +20,22 @@ class IPGeolocation:
         self.get_location()
 
     def get_location(self):
-        if self.ip_address in IPGeolocation.cache:
-            geo_data = IPGeolocation.cache[self.ip_address]
-        else:
-            try:
-                json_request = requests.get(f'http://ip-api.com/json/{self.ip_address}').json()
-                geo_data = {
-                    'country': json_request.get('country', ''),
-                    'city': json_request.get('city', ''),
-                    'timezone': json_request.get('timezone', ''),
-                    'lat': json_request.get('lat', ''),
-                    'lon': json_request.get('lon', ''),
-                    'isp': json_request.get('isp', '')
-                }
-                IPGeolocation.cache[self.ip_address] = geo_data
-            except requests.RequestException as e:
-                print(f"Error fetching geolocation data: {e}")
-                geo_data = {
-                    'country': '',
-                    'city': '',
-                    'timezone': '',
-                    'lat': '',
-                    'lon': '',
-                    'isp': ''
-                }
-
-        self.country = geo_data['country']
-        self.city = geo_data['city']
-        self.time_zone = geo_data['timezone']
-        self.latitude = geo_data['lat']
-        self.longitude = geo_data['lon']
-        self.isp = geo_data['isp']
+        try:
+            json_request = requests.get(f'http://ip-api.com/json/{self.ip_address}').json()
+            if 'country' in json_request:
+                self.country = json_request['country']
+            if 'city' in json_request:
+                self.city = json_request['city']
+            if 'timezone' in json_request:
+                self.time_zone = json_request['timezone']
+            if 'lat' in json_request:
+                self.latitude = json_request['lat']
+            if 'lon' in json_request:
+                self.longitude = json_request['lon']
+            if 'isp' in json_request:
+                self.isp = json_request['isp']
+        except requests.RequestException as e:
+            print(f"Error fetching geolocation data: {e}")
 
 class WiresharkApp:
     def __init__(self, master):
@@ -356,7 +338,7 @@ class WiresharkApp:
                     else:
                         src_country_count[src_country] = 1
 
-        self.master.after(0, self.plot_pie_chart, src_country_count, "Source Country Distribution")
+        self.plot_pie_chart(src_country_count, "Source Country Distribution")
 
     def generate_source_service_stats(self):
         src_service_count = {}
@@ -373,7 +355,7 @@ class WiresharkApp:
                     else:
                         src_service_count[src_service] = 1
 
-        self.master.after(0, self.plot_pie_chart, src_service_count, "Source Service Distribution")
+        self.plot_pie_chart(src_service_count, "Source Service Distribution")
 
     def plot_pie_chart(self, data, title):
         labels = list(data.keys())
