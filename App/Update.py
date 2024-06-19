@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import scrolledtext, filedialog, ttk, messagebox
+from PIL import Image, ImageTk
 import pyshark
 import threading
 import csv
@@ -7,6 +8,9 @@ import requests
 import matplotlib.pyplot as plt
 import asyncio
 import psutil  # Thêm thư viện psutil
+from scapy.all import wrpcap
+from scapy.layers.inet import IP
+from scapy.layers.l2 import Ether
 
 
 class IPGeolocation:
@@ -66,6 +70,7 @@ class WiresharkApp:
         self.file_menu = tk.Menu(self.menu, tearoff=False)
         self.menu.add_cascade(label="File", menu=self.file_menu)
         self.file_menu.add_command(label="Open", command=self.open_file)
+        self.file_menu.add_command(label="Save to PCAP", command=self.save_to_pcap)
         self.file_menu.add_command(label="Save to CSV", command=self.save_to_csv)
         self.file_menu.add_separator()
         self.file_menu.add_command(label="Exit", command=master.quit)
@@ -80,6 +85,22 @@ class WiresharkApp:
         self.stats_menu.add_command(label="Source Country Distribution", command=self.show_source_country_stats)
         self.stats_menu.add_command(label="Source Service Distribution", command=self.show_source_service_stats)
 
+        # Logo và tiêu đề
+        self.top_frame = tk.Frame(master)
+        self.top_frame.pack(pady=10)
+
+        # Tải và hiển thị logo
+        self.logo_image = Image.open('D:/Python_NETWORKING_CODE/BTLon/CD1/App/Logo_MTA_new.png')
+        self.logo_image = self.logo_image.resize((80, 80), Image.LANCZOS)
+        self.logo_photo = ImageTk.PhotoImage(self.logo_image)
+        self.logo_label = tk.Label(self.top_frame, image=self.logo_photo)
+        self.logo_label.grid(row=0, column=0, padx=(0, 50), sticky="w")  # Sát về bên trái
+
+        self.title_label = tk.Label(self.top_frame, text="Phân tích mạng K56", font=("Arial", 24))
+        self.title_label.grid(row=0, column=1, padx=10, columnspan=2)  # Căn giữa
+
+        self.top_frame.pack(pady=10)
+#######################################
         # Frame for interface selection and control buttons
         self.interface_frame = tk.Frame(master)
         self.interface_frame.pack(pady=10)
@@ -383,6 +404,23 @@ class WiresharkApp:
         plt.title(title)
         plt.axis('equal')
         plt.show()
+
+    def save_to_pcap(self):
+        file_path = filedialog.asksaveasfilename(defaultextension=".pcap",
+                                                 filetypes=[("PCAP Files", "*.pcap"), ("All Files", "*.*")])
+        if file_path:
+            scapy_packets = []
+            for packet in self.packet_list:
+                if 'ip' in packet:
+                    ip_packet = IP(src=packet.ip.src, dst=packet.ip.dst)
+                    if 'eth' in packet:
+                        ether_packet = Ether(src=packet.eth.src, dst=packet.eth.dst)
+                        scapy_packets.append(ether_packet / ip_packet)
+                    else:
+                        scapy_packets.append(ip_packet)
+            wrpcap(file_path, scapy_packets)
+            messagebox.showinfo("Save to PCAP", "PCAP file saved successfully!")
+
 
 def main():
     root = tk.Tk()

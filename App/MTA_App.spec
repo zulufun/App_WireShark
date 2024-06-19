@@ -7,7 +7,7 @@ a = Analysis(
     pathex=['.'],
     binaries=[],
     datas=[('D:\\Python_NETWORKING_CODE\\BTLon\\CD1\\App\\Logo_MTA_new.png', '.')],
-    hiddenimports=['requests', 'tkinter', 'pyshark', 'matplotlib', 'psutil'],
+    hiddenimports=['requests', 'tkinter', 'pyshark', 'matplotlib', 'psutil', 'PIL', 'scapy.all', 'scapy.layers.inet', 'scapy.layers.l2'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -15,6 +15,7 @@ a = Analysis(
     noarchive=False,
     optimize=0,
 )
+
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
 exe = EXE(
@@ -35,7 +36,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=r'D:\Python_NETWORKING_CODE\BTLon\CD1\App\Logo_MTA_new.png'
+    icon=r'D:\Python_NETWORKING_CODE\BTLon\CD1\App\Logo_MTA_new.ico'  # Đảm bảo icon có định dạng .ico
 )
 
 coll = COLLECT(
