@@ -6,7 +6,8 @@ a = Analysis(
     ['MTA_App.py'],
     pathex=['.'],
     binaries=[],
-    datas=[('D:\\Python_NETWORKING_CODE\\BTLon\\CD1\\App\\Logo_MTA_new.png', '.')],
+    datas=[('D:\\Python_NETWORKING_CODE\\BTLon\\CD1\\App\\Logo_MTA_new.png', '.'),
+           ('D:\\Python_NETWORKING_CODE\\BTLon\\CD1\\App\\Logo_MTA_new.png', '.')],  # Bao gồm file ảnh
     hiddenimports=['requests', 'tkinter', 'pyshark', 'matplotlib', 'psutil', 'PIL', 'scapy.all', 'scapy.layers.inet', 'scapy.layers.l2'],
     hookspath=[],
     hooksconfig={},
@@ -30,13 +31,13 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=False,  # Đặt console=False để không mở terminal
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=r'D:\Python_NETWORKING_CODE\BTLon\CD1\App\Logo_MTA_new.ico'  # Đảm bảo icon có định dạng .ico
+    icon=r'D:\Python_NETWORKING_CODE\BTLon\CD1\App\Logo_MTA_new.png'
 )
 
 coll = COLLECT(
