@@ -1,6 +1,5 @@
 import tkinter as tk
 from tkinter import scrolledtext, filedialog, ttk, messagebox
-from PIL import Image, ImageTk
 import pyshark
 import threading
 import csv
@@ -12,6 +11,7 @@ from scapy.all import wrpcap
 from scapy.layers.inet import IP
 from scapy.layers.l2 import Ether
 
+from PIL import Image, ImageTk
 
 class IPGeolocation:
     cache = {}
@@ -90,14 +90,14 @@ class WiresharkApp:
         self.top_frame.pack(pady=10)
 
         # Tải và hiển thị logo
-        self.logo_image = Image.open('D:/Python_NETWORKING_CODE/BTLon/CD1/App/Logo_MTA_new.png')
-        self.logo_image = self.logo_image.resize((80, 80), Image.LANCZOS)
-        self.logo_photo = ImageTk.PhotoImage(self.logo_image)
-        self.logo_label = tk.Label(self.top_frame, image=self.logo_photo)
-        self.logo_label.grid(row=0, column=0, padx=(0, 50), sticky="w")  # Sát về bên trái
+        # self.logo_image = Image.open('D:/Python_NETWORKING_CODE/BTLon/CD1/App/Logo_MTA_new.png')
+        # self.logo_image = self.logo_image.resize((80, 80), Image.LANCZOS)
+        # self.logo_photo = ImageTk.PhotoImage(self.logo_image)
+        # self.logo_label = tk.Label(self.top_frame, image=self.logo_photo)
+        # self.logo_label.grid(row=0, column=0, padx=(0, 50), sticky="w")  # Sát về bên trái
 
-        self.title_label = tk.Label(self.top_frame, text="Phân tích mạng K56", font=("Arial", 24))
-        self.title_label.grid(row=0, column=1, padx=10, columnspan=2)  # Căn giữa
+        # self.title_label = tk.Label(self.top_frame, text="Phân tích mạng K56", font=("Arial", 24))
+        # self.title_label.grid(row=0, column=1, padx=10, columnspan=2)  # Căn giữa
 
         self.top_frame.pack(pady=10)
 #######################################
@@ -344,7 +344,7 @@ class WiresharkApp:
         self.save_to_csv()
 
     def show_help_message(self):
-        messagebox.showinfo("About", "Wireshark App\nVersion 1.0")
+        messagebox.showinfo("Liên hệ", "Flow Link \nGithub : https://github.com/zulufun/App_WireShark")
 
     def display_packet_details(self, event):
         item = self.tree.selection()
@@ -364,7 +364,6 @@ class WiresharkApp:
 
     def generate_source_country_stats(self):
         src_country_count = {}
-
         for packet in self.packet_list:
             if 'ip' in packet:
                 source_ip = packet.ip.src
